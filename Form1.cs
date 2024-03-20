@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Windows.Forms;
 
 namespace Secure
@@ -72,6 +73,11 @@ namespace Secure
             timer.Interval = 1;
             timer.Tick += timer_tick;
             timer.Start();
+
+            //test processes//
+            processesDirToSecure.Add(@"D:\Windows\AppData\Roaming\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar\password generator.lnk");
+            processesDirToSecure.Add(@"D:\Windows\Desktop\AutoClicker.lnk");
+            //end//
         }
 
         private string GetProcessNameFromFile(string filePath)
@@ -110,11 +116,6 @@ namespace Secure
         private List<ProcessToSecure> GetProcesses()
         {
             List<ProcessToSecure> processToSecure = new List<ProcessToSecure>();
-
-            //test processes//
-            processesDirToSecure.Add(@"D:\Windows\AppData\Roaming\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar\password generator.lnk");
-            processesDirToSecure.Add(@"D:\Windows\Desktop\AutoClicker.lnk");
-            //end//
 
             foreach(string processDir in processesDirToSecure)
             {
@@ -179,7 +180,7 @@ namespace Secure
             const string MINIMIZE_COMMAND = "minimize";
             const string ADD_PROCESS_COMMAND = "process";
 
-            string[] parts = input.Split(' ');
+            string[] parts = input.Split(new char[] {' '}, 3, StringSplitOptions.RemoveEmptyEntries);
 
             if (parts[0] == EXIT_COMMAND)
             {
@@ -190,34 +191,65 @@ namespace Secure
                 const string ADD_PARAM = "-a";
                 const string REMOVE_PARAM = "-r";
 
-                if(parts.Length == 2)
+                if(parts.Length == 2 && parts[1] == DISPLAY_PARAM)
                 {
-                    if (parts[1] == DISPLAY_PARAM)
+                    if (processesDirToSecure.Count != 0)
                     {
-                        if(processesDirToSecure.Count != 0)
+                        int i = 0;
+                        foreach (var dir in processesDirToSecure)
                         {
-                            int i = 0;
-                            foreach (var dir in processesDirToSecure)
-                            {
-                                Write($"{i}. {dir}");
-                                i++;
-                            }
-                        } else
-                        {
-                            Write("NO DIRS IN PROCESSES DIR TO SECURE");
+                            Write($"{i}. {dir}");
+                            i++;
                         }
-
+                    }
+                    else
+                    {
+                        Write("NO DIRS IN PROCESSES DIR TO SECURE");
                     }
                 }
                 else if (parts.Length == 3)
                 {
                     if (parts[1] == ADD_PARAM)
                     {
-
+                        string dir = parts[2].Trim('\'').Trim('"');
+                        if(File.Exists(dir))
+                        {
+                            Write($"{CONSOLE_PREFIX} ADDED NEW DIR TO PROCESSES DIR TO SECURE");
+                            processesDirToSecure.Add(dir);
+                            processesToSecure = GetProcesses();
+                        }
+                        else
+                        {
+                            Write($"{CONSOLE_PREFIX} FILE DOES NOT EXIST");
+                        }
                     }
                     else if (parts[1] == REMOVE_PARAM)
                     {
-
+                        string param = parts[2];
+                        if(int.TryParse(param, out int index))
+                        {
+                            if(index <= processesDirToSecure.Count - 1)
+                            {
+                                Write($"{CONSOLE_PREFIX} REMOVED DIR '{processesDirToSecure[index]}' AT INDEX {index}");
+                                processesDirToSecure.RemoveAt(index);
+                            } 
+                            else
+                            {
+                                Write($"{CONSOLE_PREFIX} INDEX IS TO BIG");
+                            }
+                        } 
+                        else
+                        {
+                            string dir = param.Trim('\'').Trim('"');
+                            if(processesDirToSecure.Contains(dir))
+                            {
+                                processesDirToSecure.Remove(dir);
+                                Write($"{CONSOLE_PREFIX} REMOVED DIR '{dir}'");
+                            } else
+                            {
+                                Write($"{CONSOLE_PREFIX} NO PROCESS WITH DIR '{dir}' FOUND");
+                            }
+                        }
                     } 
                     else
                     {
@@ -226,7 +258,7 @@ namespace Secure
                 }
                 else
                 {
-                    Write($"{CONSOLE_PREFIX} {ADD_PROCESS_COMMAND} {DISPLAY_PARAM} | {ADD_PARAM} | {REMOVE_PARAM} [DIR]");
+                    Write($"{CONSOLE_PREFIX} {ADD_PROCESS_COMMAND} {DISPLAY_PARAM} | {ADD_PARAM} '[DIR]' | {REMOVE_PARAM} '[DIR]'/[INDEX]");
                 }
             }
             else if (parts[0] == CHANGE_USER_COMMAND)

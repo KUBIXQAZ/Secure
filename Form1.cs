@@ -214,9 +214,15 @@ namespace Secure
                         string dir = parts[2].Trim('\'').Trim('"');
                         if(File.Exists(dir))
                         {
-                            Write($"{CONSOLE_PREFIX} ADDED NEW DIR TO PROCESSES DIR TO SECURE");
-                            processesDirToSecure.Add(dir);
-                            processesToSecure = GetProcesses();
+                            if(!processesDirToSecure.Contains(dir))
+                            {
+                                Write($"{CONSOLE_PREFIX} ADDED NEW DIR TO PROCESSES DIR TO SECURE");
+                                processesDirToSecure.Add(dir);
+                                processesToSecure = GetProcesses();
+                            } else
+                            {
+                                Write($"{CONSOLE_PREFIX} DIR {dir} ALREADY EXISTS IN PROCESSES DIR TO SECURE");
+                            }
                         }
                         else
                         {

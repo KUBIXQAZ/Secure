@@ -12,14 +12,14 @@ namespace Secure
         public bool awaiting = false;
         public List<ProcessToSecure> awaitingProcesses = new List<ProcessToSecure>();
 
-        public Timer adminTimer = new Timer();
-
         public User user;
         public User guest;
         public User admin;
 
         public List<string> processesDirToSecure = new List<string>();
         public List<ProcessToSecure> processesToSecure = new List<ProcessToSecure>();
+
+        public const string CONSOLE_PREFIX = "[CONSOLE]:";
 
         public class User
         {
@@ -112,14 +112,8 @@ namespace Secure
             List<ProcessToSecure> processToSecure = new List<ProcessToSecure>();
 
             //test processes//
-            processToSecure.Add(new ProcessToSecure
-            {
-                ProcessName = GetProcessNameFromFile(@"D:\Windows\AppData\Roaming\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar\password generator.lnk")
-            });
-            processToSecure.Add(new ProcessToSecure
-            {
-                ProcessName = GetProcessNameFromFile(@"D:\Windows\Desktop\AutoClicker.lnk")
-            });
+            processesDirToSecure.Add(@"D:\Windows\AppData\Roaming\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar\password generator.lnk");
+            processesDirToSecure.Add(@"D:\Windows\Desktop\AutoClicker.lnk");
             //end//
 
             foreach(string processDir in processesDirToSecure)
@@ -183,13 +177,58 @@ namespace Secure
             const string USERS_COMMAND = "users";
             const string EXIT_COMMAND = "exit";
             const string MINIMIZE_COMMAND = "minimize";
+            const string ADD_PROCESS_COMMAND = "process";
 
             string[] parts = input.Split(' ');
 
             if (parts[0] == EXIT_COMMAND)
             {
                 Application.Exit();
-            } 
+            } else if (parts[0] == ADD_PROCESS_COMMAND)
+            {
+                const string DISPLAY_PARAM = "-d";
+                const string ADD_PARAM = "-a";
+                const string REMOVE_PARAM = "-r";
+
+                if(parts.Length == 2)
+                {
+                    if (parts[1] == DISPLAY_PARAM)
+                    {
+                        if(processesDirToSecure.Count != 0)
+                        {
+                            int i = 0;
+                            foreach (var dir in processesDirToSecure)
+                            {
+                                Write($"{i}. {dir}");
+                                i++;
+                            }
+                        } else
+                        {
+                            Write("NO DIRS IN PROCESSES DIR TO SECURE");
+                        }
+
+                    }
+                }
+                else if (parts.Length == 3)
+                {
+                    if (parts[1] == ADD_PARAM)
+                    {
+
+                    }
+                    else if (parts[1] == REMOVE_PARAM)
+                    {
+
+                    } 
+                    else
+                    {
+                        Write($"{CONSOLE_PREFIX} NO PARAM FOUND");
+                    }
+                }
+                else
+                {
+                    Write($"{CONSOLE_PREFIX} {ADD_PROCESS_COMMAND} {DISPLAY_PARAM} | {ADD_PARAM} | {REMOVE_PARAM} [DIR]");
+                }
+            }
             else if (parts[0] == CHANGE_USER_COMMAND)
             {
                 if (parts.Length == 3)

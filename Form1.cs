@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Windows.Forms;
+using Newtonsoft.Json;
 
 namespace Secure
 {
@@ -39,6 +40,10 @@ namespace Secure
             }
         }
 
+        public string appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        public string myAppFolder;
+        public string processesFilePath;
+
         public class ProcessToSecure
         {
             public string ProcessName;
@@ -49,6 +54,9 @@ namespace Secure
         public Form1()
         {
             InitializeComponent();
+
+            myAppFolder = Path.Combine(appDataPath, "KUBIXQAZ/Secure");
+            processesFilePath = Path.Combine(myAppFolder, "processes.json");
 
             FormClosing += Closing;
             userInput.KeyDown += OnKeyDown;
@@ -68,16 +76,12 @@ namespace Secure
 
             user = guest;
 
-            processesToSecure = GetProcesses();
-
             timer.Interval = 1;
             timer.Tick += timer_tick;
             timer.Start();
 
-            //test processes//
-            processesDirToSecure.Add(@"D:\Windows\AppData\Roaming\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar\password generator.lnk");
-            processesDirToSecure.Add(@"D:\Windows\Desktop\AutoClicker.lnk");
-            //end//
+            LoadProcesses();
+            processesToSecure = GetProcesses();
         }
 
         private string GetProcessNameFromFile(string filePath)
@@ -87,6 +91,29 @@ namespace Secure
             process.Kill();
 
             return name;
+        }
+
+        private void SaveProcesses()
+        {
+            string json = JsonConvert.SerializeObject(processesDirToSecure);
+
+            if(!Directory.Exists(myAppFolder)) Directory.CreateDirectory(myAppFolder);
+
+            File.WriteAllText(processesFilePath, json);
+        }
+
+        private void LoadProcesses()
+        {
+            if(File.Exists(processesFilePath))
+            {
+                string json = File.ReadAllText(processesFilePath);
+
+                List<string> dirs = new List<string>();
+
+                dirs = JsonConvert.DeserializeObject<List<string>>(json);
+
+                processesDirToSecure = new List<string>(dirs);
+            }
         }
 
         private void Write(string input)
@@ -123,7 +150,8 @@ namespace Secure
                 {
                     processToSecure.Add(new ProcessToSecure
                     {
-                        ProcessName = GetProcessNameFromFile(processDir)
+                        ProcessName = GetProcessNameFromFile(processDir),
+                        ProcessPath = processDir
                     });
                 }
                 catch { }
@@ -149,7 +177,7 @@ namespace Secure
                         awaiting = true;
 
                         Activate();
-                        Write("[CONSOLE]: INPUT PASSWORD:");
+                        Write($"{CONSOLE_PREFIX} INPUT PASSWORD FOR '{processToSecure.ProcessName}':");
                         file[0].Kill();
                     }
 
@@ -182,89 +210,142 @@ namespace Secure
 
             string[] parts = input.Split(new char[] {' '}, 3, StringSplitOptions.RemoveEmptyEntries);
 
+
             if (parts[0] == EXIT_COMMAND)
             {
-                Application.Exit();
-            } else if (parts[0] == ADD_PROCESS_COMMAND)
-            {
-                const string DISPLAY_PARAM = "-d";
-                const string ADD_PARAM = "-a";
-                const string REMOVE_PARAM = "-r";
-
-                if(parts.Length == 2 && parts[1] == DISPLAY_PARAM)
+                if (user == admin)
                 {
-                    if (processesDirToSecure.Count != 0)
-                    {
-                        int i = 0;
-                        foreach (var dir in processesDirToSecure)
-                        {
-                            Write($"{i}. {dir}");
-                            i++;
-                        }
-                    }
-                    else
-                    {
-                        Write("NO DIRS IN PROCESSES DIR TO SECURE");
-                    }
+                    Application.Exit();
+                } else
+                {
+                    Write($"{CONSOLE_PREFIX} ACCESS DENIED");
                 }
-                else if (parts.Length == 3)
+            }
+            else if (parts[0] == ADD_PROCESS_COMMAND)
+            {
+                if (user == admin)
                 {
-                    if (parts[1] == ADD_PARAM)
+                    const string DISPLAY_PARAM = "-d";
+                    const string ADD_PARAM = "-a";
+                    const string REMOVE_PARAM = "-r";
+                    const string SWITCH_LOCK_PARAM = "-s";
+
+                    if (parts.Length == 2 && parts[1] == DISPLAY_PARAM)
                     {
-                        string dir = parts[2].Trim('\'').Trim('"');
-                        if(File.Exists(dir))
+                        if (processesToSecure.Count != 0)
                         {
-                            if(!processesDirToSecure.Contains(dir))
+                            int i = 0;
+                            foreach (var process in processesToSecure)
                             {
-                                Write($"{CONSOLE_PREFIX} ADDED NEW DIR TO PROCESSES DIR TO SECURE");
-                                processesDirToSecure.Add(dir);
-                                processesToSecure = GetProcesses();
-                            } else
-                            {
-                                Write($"{CONSOLE_PREFIX} DIR {dir} ALREADY EXISTS IN PROCESSES DIR TO SECURE");
+                                Write($"{i}. LOCKED: [{(process.locked ? "ON" : "OFF")}] NAME: '{process.ProcessName}' DIR: '{process.ProcessPath}'");
+                                i++;
                             }
                         }
                         else
                         {
-                            Write($"{CONSOLE_PREFIX} FILE DOES NOT EXIST");
+                            Write($"{CONSOLE_PREFIX} NO DIRS IN PROCESSES DIR TO SECURE");
                         }
                     }
-                    else if (parts[1] == REMOVE_PARAM)
+                    else if (parts.Length == 3)
                     {
-                        string param = parts[2];
-                        if(int.TryParse(param, out int index))
+                        if (parts[1] == ADD_PARAM)
                         {
-                            if(index <= processesDirToSecure.Count - 1)
+                            string dir = parts[2].Trim('\'').Trim('"');
+                            if (File.Exists(dir))
                             {
-                                Write($"{CONSOLE_PREFIX} REMOVED DIR '{processesDirToSecure[index]}' AT INDEX {index}");
-                                processesDirToSecure.RemoveAt(index);
-                            } 
+                                if (!processesDirToSecure.Contains(dir))
+                                {
+                                    Write($"{CONSOLE_PREFIX} ADDED NEW DIR TO PROCESSES DIR TO SECURE");
+                                    processesDirToSecure.Add(dir);
+                                    processesToSecure = GetProcesses();
+                                    SaveProcesses();
+                                }
+                                else
+                                {
+                                    Write($"{CONSOLE_PREFIX} DIR '{dir}' ALREADY EXISTS IN PROCESSES DIR TO SECURE");
+                                }
+                            }
                             else
                             {
-                                Write($"{CONSOLE_PREFIX} INDEX IS TO BIG");
-                            }
-                        } 
-                        else
-                        {
-                            string dir = param.Trim('\'').Trim('"');
-                            if(processesDirToSecure.Contains(dir))
-                            {
-                                processesDirToSecure.Remove(dir);
-                                Write($"{CONSOLE_PREFIX} REMOVED DIR '{dir}'");
-                            } else
-                            {
-                                Write($"{CONSOLE_PREFIX} NO PROCESS WITH DIR '{dir}' FOUND");
+                                Write($"{CONSOLE_PREFIX} FILE DOES NOT EXIST");
                             }
                         }
-                    } 
+                        else if (parts[1] == REMOVE_PARAM)
+                        {
+                            string param = parts[2];
+                            if (int.TryParse(param, out int index))
+                            {
+                                if (index <= processesDirToSecure.Count - 1)
+                                {
+                                    Write($"{CONSOLE_PREFIX} REMOVED DIR '{processesDirToSecure[index]}' AT INDEX {index}");
+                                    processesDirToSecure.RemoveAt(index);
+                                    SaveProcesses();
+                                }
+                                else
+                                {
+                                    Write($"{CONSOLE_PREFIX} INDEX IS TO BIG");
+                                }
+                            }
+                            else
+                            {
+                                string dir = param.Trim('\'').Trim('"');
+                                if (processesDirToSecure.Contains(dir))
+                                {
+                                    processesDirToSecure.Remove(dir);
+                                    Write($"{CONSOLE_PREFIX} REMOVED DIR '{dir}'");
+                                }
+                                else
+                                {
+                                    Write($"{CONSOLE_PREFIX} NO PROCESS WITH DIR '{dir}' FOUND");
+                                }
+                            }
+                        }
+                        else if (parts[1] == SWITCH_LOCK_PARAM)
+                        {
+                            string param = parts[2];
+                            if (int.TryParse(param, out int index))
+                            {
+                                if (index <= processesDirToSecure.Count - 1)
+                                {
+                                    Write($"{CONSOLE_PREFIX} LOCK SWITCHED ON DIR '{processesDirToSecure[index]}' AT INDEX {index}");
+                                    processesToSecure[index].locked = !processesToSecure[index].locked;
+                                }
+                                else
+                                {
+                                    Write($"{CONSOLE_PREFIX} INDEX IS TO BIG");
+                                }
+                            }
+                            else
+                            {
+                                string dir = param.Trim('\'').Trim('"');
+                                if (processesDirToSecure.Contains(dir))
+                                {
+                                    Write($"{CONSOLE_PREFIX} LOCK SWITCHED ON DIR '{dir}'");
+                                    ProcessToSecure processToSwitch = null;
+                                    foreach(var process in processesToSecure)
+                                    {
+                                        if (process.ProcessPath == dir) processToSwitch = process;
+                                    }
+                                    processesToSecure[processesToSecure.IndexOf(processToSwitch)].locked = !processesToSecure[processesToSecure.IndexOf(processToSwitch)].locked;
+                                }
+                                else
+                                {
+                                    Write($"{CONSOLE_PREFIX} NO PROCESS WITH DIR '{dir}' FOUND");
+                                }
+                            }
+                        }
+                        else
+                        {
+                            Write($"{CONSOLE_PREFIX} NO PARAM FOUND");
+                        }
+                    }
                     else
                     {
-                        Write($"{CONSOLE_PREFIX} NO PARAM FOUND");
+                        Write($"{CONSOLE_PREFIX} {ADD_PROCESS_COMMAND} {DISPLAY_PARAM} | {ADD_PARAM} '[DIR]' | {REMOVE_PARAM} '[DIR]'/[INDEX]");
                     }
-                }
-                else
+                } else
                 {
-                    Write($"{CONSOLE_PREFIX} {ADD_PROCESS_COMMAND} {DISPLAY_PARAM} | {ADD_PARAM} '[DIR]' | {REMOVE_PARAM} '[DIR]'/[INDEX]");
+                    Write($"{CONSOLE_PREFIX} ACCESS DENIED");
                 }
             }
             else if (parts[0] == CHANGE_USER_COMMAND)
@@ -278,7 +359,7 @@ namespace Secure
                     {
                         exist = true;
                         _user = guest;
-                    } 
+                    }
                     else if (parts[1] == admin.Name)
                     {
                         exist = true;
@@ -289,35 +370,35 @@ namespace Secure
                     {
                         if (_user.CheckPassword(parts[2]))
                         {
-                            Write($"[CONSOLE]: LOGGED IN AS '{parts[1]}'");
+                            Write($"{CONSOLE_PREFIX} LOGGED IN AS '{parts[1]}'");
                             user = _user;
-                        } 
+                        }
                         else
                         {
-                            Write("[CONSOLE]: SOMETHING WENT WRONG TRY AGAIN LATER");
+                            Write($"{CONSOLE_PREFIX} SOMETHING WENT WRONG TRY AGAIN LATER");
                         }
                     }
                     else
                     {
-                        Write($"[CONSOLE]: THERE IS NO USER NAMED '{parts[1]}'");
+                        Write($"{CONSOLE_PREFIX} THERE IS NO USER NAMED '{parts[1]}'");
                     }
                 } else
                 {
-                    Write($"[CONSOLE]: {CHANGE_USER_COMMAND} [NAME] [PASSWORD]");
+                    Write($"{CONSOLE_PREFIX} {CHANGE_USER_COMMAND} [NAME] [PASSWORD]");
                 }
-            } 
+            }
             else if (parts[0] == MINIMIZE_COMMAND)
             {
                 WindowState = FormWindowState.Minimized;
-            } 
+            }
             else if (parts[0] == USERS_COMMAND) {
-                Write("[CONSOLE]: DISPLAYING USERS:");
-                Write($"[CONSOLE]: 'admin'");
-                Write($"[CONSOLE]: 'guest'");
-            } 
+                Write($"{CONSOLE_PREFIX} DISPLAYING USERS:");
+                Write($"{CONSOLE_PREFIX} 'admin'");
+                Write($"{CONSOLE_PREFIX} 'guest'");
+            }
             else
             {
-                Write("[CONSOLE]: UNRECOGNIZED COMMAND");
+                Write($"{CONSOLE_PREFIX} UNRECOGNIZED COMMAND");
             }
         }
 
@@ -330,24 +411,24 @@ namespace Secure
 
             if (awaiting)
             {
-                if(awaitingProcesses.Count == 0)
-                {
-                    awaiting = false;
-                }
-
                 List<ProcessToSecure> processes = new List<ProcessToSecure>(awaitingProcesses);
                 foreach (var process in processes)
                 {
                     if (admin.CheckPassword(input))
                     {
-                        Write("[CONSOLE]: CORRECT PASSWORD");
+                        Write($"{CONSOLE_PREFIX} CORRECT PASSWORD");
                         processesToSecure[processesToSecure.IndexOf(process)].locked = false;
                         Process.Start(process.ProcessPath);
                     } else
                     {
-                        Write("[CONSOLE]: INCORRECT PASSWORD");
+                        Write($"{CONSOLE_PREFIX} INCORRECT PASSWORD");
                     }
                     awaitingProcesses.Remove(process);
+                }
+
+                if (awaitingProcesses.Count == 0)
+                {
+                    awaiting = false;
                 }
             } 
             else
